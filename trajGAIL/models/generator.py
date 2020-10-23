@@ -9,7 +9,7 @@ from torch.autograd import Variable
 from trajGAIL.preprocess.tool import decide_next_state
 from trajGAIL.preprocess.helper import processing_state_features
 from trajGAIL.evaluation import metrics
-from trajGAIL.transformers.encoder import Encoder
+from trajGAIL.transformer.encoder import Encoder
 import copy
 
 STATE_DIM = 125
