@@ -28,12 +28,16 @@ def next_states(dircs, current_states, volume, train_airport, traffic):
     return ret
 
 class GenCNN(nn.Module):
-    def __init__(self, state_dim, num_classes, embedding_dim, filter_sizes, num_filters, NSTEPS):
+    def __init__(self, state_dim, num_classes, embedding_dim, filter_sizes, num_filters, NSTEPS, volume, train_airport, traffic):
         super(GenCNN, self).__init__()
         self.convs = nn.ModuleList([nn.Conv2d(state_dim*NSTEPS, n, (f, embedding_dim)) for (n, f) in zip(num_filters, filter_sizes)])
         self.highway = nn.Linear(sum(num_filters), sum(num_filters))
         self.dropout = nn.Dropout(p=dropout)
         self.fc = nn.Linear(sum(num_filters), num_classes)
+        
+        self.volume = volume
+        self.train_airport = train_airport
+        self.traffic = traffic
         self.init_parameters()
     def init_parameters(self):
         for param in self.parameters():
@@ -55,7 +59,7 @@ class GenCNN(nn.Module):
     def targeting_prob(self, x, labels):
         action_prob = self.forward(x)
         return action_prob.gather(1, labels)
-    def sample(self, inp, length, NSTEPS, volume, train_airport, traffic):
+    def sample(self, inp, length, NSTEPS):
         states = []
         actions = []
 
@@ -77,7 +81,7 @@ class GenCNN(nn.Module):
             if action.item() == 9:
                 break
 
-            next_state.extend(processing_state_features(next_state, volume, train_airport, traffic))
+            next_state.extend(processing_state_features(next_state, self.volume, self.train_airport, self.traffic))
             temp = torch.zeros(1, NSTEPS*5, 5, 5)
             temp[0, :(NSTEPS-1)*5, :, :] = inp[0, 5:, :, :]
             temp[0, -5:, :, :] = torch.FloatTensor(next_state).view(5, 5, 5)
@@ -88,7 +92,7 @@ class GenCNN(nn.Module):
 
 class GenLSTM(nn.Module):
     '''LSTM Generator'''
-    def __init__(self, emb_dim, hidden_dim, vocab_size, max_seq_len, gpu=False):
+    def __init__(self, emb_dim, hidden_dim, vocab_size, max_seq_len, volume, train_airport, traffic, gpu=False):
         super(GenLSTM, self).__init__()
         self.emb_dim = emb_dim
         self.hidden_dim = hidden_dim
@@ -97,6 +101,10 @@ class GenLSTM(nn.Module):
         self.lstm = nn.LSTM(emb_dim, hidden_dim, batch_first=True) # input: (batch_size, seq_length, embedding_dim)
         self.fc = nn.Linear(hidden_dim, vocab_size)
         self.softmax = nn.LogSoftmax()
+        
+        self.volume = volume
+        self.train_airport = train_airport
+        self.traffic = traffic
         self.init_params()
 
     def init_hidden(self, batch_size):
@@ -125,7 +133,7 @@ class GenLSTM(nn.Module):
         output, (h, c) = self.lstm(x, (h, c))
         pred = F.log_softmax(self.fc(output.view(-1, self.hidden_dim)), dim=1)
         return pred, h, c
-    def sample(self, num_samples, sample_from, volume, train_airport, traffic, x=None):
+    def sample(self, num_samples, sample_from, x=None):
         samples = torch.zeros(num_samples, self.max_seq_len, self.emb_dim).type(torch.FloatTensor)
         sample_actions = torch.zeros(num_samples, self.max_seq_len).type(torch.LongTensor)
 
@@ -148,7 +156,7 @@ class GenLSTM(nn.Module):
             sample_actions[:, i] = out.view(-1).data
             if out[0].data == 9 or out[0].data == 19:
                 return samples, sample_actions
-            ns = next_states(out.view(-1).data, samples[:, i, :].data, volume, train_airport, traffic)
+            ns = next_states(out.view(-1).data, samples[:, i, :].data, self.volume, self.train_airport, self.traffic)
 
         if self.gpu:
             samples = samples.cuda()
@@ -163,7 +171,7 @@ class GenLSTM(nn.Module):
             sample_actions[:, i] = acts.view(-1).data
             if acts[0].data == 9 or out[0].data == 19:
                 return samples, sample_actions
-            ns = next_states(acts.view(-1).data, samples[:, i, :].data, volume, train_airport, traffic)
+            ns = next_states(acts.view(-1).data, samples[:, i, :].data, self.volume, self.train_airport, self.traffic)
             if self.gpu:
                 ns = next_state.cuda()
             if i+1 < self.max_seq_len:
@@ -218,7 +226,7 @@ class GenLSTM(nn.Module):
 
 class GenAtt(nn.Module):
     '''Attention Generator'''
-    def __init__(self, emb_dim, vocab_size, max_seq_len, N, heads, dropout, gpu=False):
+    def __init__(self, emb_dim, vocab_size, max_seq_len, N, heads, dropout, volume, train_airport, traffic, gpu=False):
         super(GenAtt, self).__init__()
         self.emb_dim = emb_dim
         self.gpu = gpu
@@ -226,6 +234,10 @@ class GenAtt(nn.Module):
         self.encoder = Encoder(emb_dim, max_seq_len, N, heads, dropout)
         self.fc = nn.Linear(emb_dim*max_seq_len, vocab_size)
         self.softmax = nn.LogSoftmax()
+        
+        self.volume = volume
+        self.train_airport = train_airport
+        self.traffic = traffic
         self.init_params()
     def init_params(self):
         for param in self.parameters():
@@ -245,7 +257,7 @@ class GenAtt(nn.Module):
         output = self.fc(e_outputs.view(x.size(0), -1))
         output = self.softmax(output)
         return output
-    def sample(self, num_samples, sample_from, volume, train_airport, traffic, x=None):
+    def sample(self, num_samples, sample_from, x=None):
         """
         Samples the network and returns num_samples samples of length max_seq_len.
         Outputs: samples, hidden
@@ -263,7 +275,7 @@ class GenAtt(nn.Module):
             acts = torch.multinomial(torch.exp(out), 1)  # num_samples x 1 (sampling from each row)
 
             sample_actions[:, i] = acts.view(-1).data
-            inp = next_states(acts.view(-1).data, samples[:, i, :].data, volume, train_airport, traffic)
+            inp = next_states(acts.view(-1).data, samples[:, i, :].data, self.volume, self.train_airport, self.traffic)
             if self.gpu:
                 inp = inp.cuda()
             if given_len < self.max_seq_len:
@@ -281,7 +293,7 @@ class GenAtt(nn.Module):
             acts = torch.multinomial(torch.exp(out), 1)  # num_samples x 1 (sampling from each row)
 
             sample_actions[:, i] = acts.view(-1).data
-            next_state = next_states(acts.view(-1).data, samples[:, i, :].data, volume, train_airport, traffic)
+            next_state = next_states(acts.view(-1).data, samples[:, i, :].data, self.volume, self.train_airport, self.traffic)
             if self.gpu:
                 next_state = next_state.cuda()
             if i+1 < self.max_seq_len:
@@ -331,3 +343,4 @@ class GenAtt(nn.Module):
                 entropy -= torch.exp(out[j][target.data[j][i]])*out[j][target.data[j][i]]
 
         return (loss + lbd*entropy)/batch_size
+
