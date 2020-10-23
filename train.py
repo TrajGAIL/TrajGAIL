@@ -58,15 +58,6 @@ volume = pickle.load(open('./Data/latest_volume_pickups.pkl', 'rb'))
 train_airport = pickle.load(open('./Data/train_airport.pkl', 'rb'))
 trajectories = pickle.load(open('./Data/all_trajs.pkl', 'rb'))
 
-def processing_state_features(input_state, volume=volume, train_airport=train_airport, traffic=traffic):
-    return helper.processing_state_features(input_state, volume, train_airport, traffic)
-
-def process_trajectories(trajectories_dict, target_driver_no, drivers_reverse=drivers_reverse, volume=volume, train_airport=train_airport, traffic=traffic):
-    return helper.process_trajectories(trajectories_dict, target_driver_no, drivers_reverse, volume, train_airport, traffic)
-
-def process_trajectory(trajectories, target_driver_no, drivers_reverse=drivers_reverse, volume=volume, train_airport=train_airport, traffic=traffic):
-    return helper.process_trajectory(trajectories, target_driver_no, drivers_reverse, volume, train_airport, traffic)
-
 def train_generator_PG(gen, gen_opt, dis, num_batches, rollout, model_type):
     """
     The generator is trained using policy gradients, using the reward from the discriminator.
@@ -183,14 +174,14 @@ if __name__ == "__main__":
     # MAIN
 
     if model_type == 1:                 
-        gen = GenCNN(STATE_DIM, VOCAB_SIZE, GEN_HIDDEN_DIM, d_filter_sizes, d_num_filters, NSTEP)
+        gen = GenCNN(STATE_DIM, VOCAB_SIZE, GEN_HIDDEN_DIM, d_filter_sizes, d_num_filters, NSTEP, volume, train_airport, traffic,)
         dis = DisCNN(STATE_DIM*NSTEP, 1, VOCAB_SIZE, d_filter_sizes, d_num_filters, gpu=CUDA, dropout=d_dropout)
     elif model_type == 2:
-        gen = GenLSTM(STATE_DIM, 32, VOCAB_SIZE, MAX_SEQ_LEN,gpu=CUDA)
-        dis = DisLSTM(STATE_DIM, 32, 1, MAX_SEQ_LEN,gpu=CUDA)
+        gen = GenLSTM(STATE_DIM, 32, VOCAB_SIZE, MAX_SEQ_LEN, volume, train_airport, traffic, gpu=CUDA)
+        dis = DisLSTM(STATE_DIM, 32, 1, MAX_SEQ_LEN, gpu=CUDA)
     else: 
-        gen = GenAtt(STATE_DIM, VOCAB_SIZE, MAX_SEQ_LEN, 1, 1, 0.2,gpu=CUDA)
-        dis = DisAtt(STATE_DIM, 1, 32, MAX_SEQ_LEN, 1, 1, 0.2,gpu=CUDA)
+        gen = GenAtt(STATE_DIM, VOCAB_SIZE, MAX_SEQ_LEN, 1, 1, 0.2, volume, train_airport, traffic, gpu=CUDA)
+        dis = DisAtt(STATE_DIM, 1, 32, MAX_SEQ_LEN, 1, 1, 0.2, gpu=CUDA)
 
     if CUDA:
         gen = gen.cuda()
@@ -219,6 +210,8 @@ if __name__ == "__main__":
         # TRAIN DISCRIMINATOR
         print('\nAdversarial Training Discriminator : ')
         train_discriminator(dis, dis_optimizer, train_loader, gen, 2, dEPOCH, pad_states)
-    
+
         torch.save(gen.state_dict(), path1+'gen_e_{}.trc'.format(epoch))
         torch.save(dis.state_dict(), path1+'dis_e_{}.trc'.format(epoch))
+
+
