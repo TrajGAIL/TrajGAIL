@@ -164,7 +164,7 @@ if __name__ == "__main__":
     for i in range(len(trajectories[agent_id])):
         exp_traj_length[i] = len(trajectories[agent_id][i])
 
-    train_states, train_actions = state_action_separation(trajectories)
+    train_states, train_actions = state_action_separation(trajectories[agent_id])
 
     # data_loader: seq_tensor, seq_lengths
     train_loader = create_dataset(train_states, train_actions, bs=32) 
