@@ -19,7 +19,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from torch.utils.data import Dataset, DataLoader
 from torch.nn import functional as F
 from math import ceil
-from trajGAIL.preprocess.tool import judging_action, decide_next_state, truncation, train_test_spliting, state_action_separation
+from trajGAIL.preprocess.tool import judging_action, decide_next_state, state_action_separation
 from trajGAIL.preprocess.paddata import PaddedTensorDataset, pad_sequences_states, pad_sequences_actions, create_dataset
 from trajGAIL.preprocess import helper
 from trajGAIL.preprocess.helper import batchwise_sample, batchwise_oracle_nll, prepare_discriminator_data
