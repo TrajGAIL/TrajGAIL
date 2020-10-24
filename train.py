@@ -40,8 +40,8 @@ d_filter_sizes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 d_num_filters = [100, 200, 200, 200, 200, 100, 100, 100, 100, 100]
 d_dropout = 0.75
 
-gPGEPOCH = 2
-dEPOCH = 2
+gPGEPOCH = 20
+dEPOCH = 10
 
 learning_rate = 1e-7
 
