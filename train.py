@@ -26,7 +26,7 @@ from trajGAIL.preprocess.helper import batchwise_sample, batchwise_oracle_nll, p
 from trajGAIL.models.generator import *
 from trajGAIL.models.discriminator import *
 
-CUDA = False
+CUDA = True
 
 VOCAB_SIZE = 20
 MAX_SEQ_LEN = 45
@@ -40,8 +40,8 @@ d_filter_sizes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 d_num_filters = [100, 200, 200, 200, 200, 100, 100, 100, 100, 100]
 d_dropout = 0.75
 
-gPGEPOCH = 20
-dEPOCH = 10
+gPGEPOCH = 2
+dEPOCH = 2
 
 learning_rate = 1e-7
 
@@ -58,6 +58,7 @@ volume = pickle.load(open('./Data/latest_volume_pickups.pkl', 'rb'))
 train_airport = pickle.load(open('./Data/train_airport.pkl', 'rb'))
 trajectories = pickle.load(open('./Data/all_trajs.pkl', 'rb'))
 
+
 def train_generator_PG(gen, gen_opt, dis, num_batches, rollout, model_type):
     """
     The generator is trained using policy gradients, using the reward from the discriminator.
@@ -71,8 +72,8 @@ def train_generator_PG(gen, gen_opt, dis, num_batches, rollout, model_type):
             rewards = rollout.get_reward(S, 1, dis)
 
         gen_opt.zero_grad()
-        pg_loss = -gen.batchPGLoss(s, a, rewards)
-        pg_loss.backward()
+        pg_loss = - gen.batchPGLoss(s, a, rewards)
+        pg_loss.mean().backward()
         gen_opt.step()
 
     # sample from generator and compute oracle NLL
@@ -158,7 +159,7 @@ if __name__ == "__main__":
     train_states, train_actions = state_action_separation(trajectories[agent_id])
 
     # data_loader: seq_tensor, seq_lengths
-    train_loader = create_dataset(train_states, train_actions, bs=32) 
+    train_loader = create_dataset(train_states, train_actions, bs=16) 
 
     seq_lengths = torch.LongTensor([len(s) for s in train_states])
     pad_states = pad_sequences_states(train_states, seq_lengths)
@@ -172,7 +173,6 @@ if __name__ == "__main__":
     global POS_NEG_SAMPLES 
     POS_NEG_SAMPLES = len(train_states)
     # MAIN
-
     if model_type == 1:                 
         gen = GenCNN(STATE_DIM, VOCAB_SIZE, GEN_HIDDEN_DIM, d_filter_sizes, d_num_filters, NSTEP, volume, train_airport, traffic,)
         dis = DisCNN(STATE_DIM*NSTEP, 1, VOCAB_SIZE, d_filter_sizes, d_num_filters, gpu=CUDA, dropout=d_dropout)
@@ -210,8 +210,7 @@ if __name__ == "__main__":
         # TRAIN DISCRIMINATOR
         print('\nAdversarial Training Discriminator : ')
         train_discriminator(dis, dis_optimizer, train_loader, gen, 2, dEPOCH, pad_states)
-
+    
         torch.save(gen.state_dict(), path1+'gen_e_{}.trc'.format(epoch))
         torch.save(dis.state_dict(), path1+'dis_e_{}.trc'.format(epoch))
-
 
