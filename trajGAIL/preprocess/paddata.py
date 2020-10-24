@@ -38,7 +38,7 @@ class PaddedTensorDataset(Dataset):
 def pad_sequences_states(seqs, seq_lengths, state_length=125):
     seq_tensor = torch.zeros((len(seqs), seq_lengths.max(), state_length)).float()
     for idx, (seq, seqlen) in enumerate(zip(seqs, seq_lengths)):
-        seq_tensor[idx, :seqlen, :state_length] = torch.FloatTensor(seq).view(-1, 1)
+        seq_tensor[idx, :seqlen, :state_length] = torch.FloatTensor(seq).view(-1, state_length)
     return seq_tensor
 
 def pad_sequences_actions(seqs, seq_lengths):
@@ -52,3 +52,4 @@ def create_dataset(data_states, data_actions, state_length=125, bs=4):
     seq_state_tensor = pad_sequences_states(data_states, seq_lengths, state_length) 
     seq_action_tensor = pad_sequences_actions(data_actions, seq_lengths)
     return DataLoader(PaddedTensorDataset(seq_state_tensor, seq_action_tensor, seq_lengths), batch_size=bs)
+
