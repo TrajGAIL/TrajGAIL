@@ -4,6 +4,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
+import copy
 
 '''Different discriminator architectures'''
 
@@ -121,8 +123,8 @@ class DisAtt(nn.Module):
         self.emb_dim = emb_dim
         self.gpu = gpu
         self.max_seq_len = max_seq_len
-        self.encoder = Encoder(emb_dim, max_seq_len, N, heads, dropout)
-        self.fc = nn.Linear(emb_dim*max_seq_len, num_classes)
+        self.encoder = Encoder(state_dim, max_seq_len, N, heads, dropout)
+        self.fc = nn.Linear(state_dim*max_seq_len, num_classes)
         self.init_parameters()
 
     def init_parameters(self):
@@ -138,7 +140,9 @@ class DisAtt(nn.Module):
         '''x: (batch_size, max_seq_len, emb_dim)'''
         if self.gpu:
             x = x.cuda()
+        
         e_outputs = self.encoder(x, mask)
+        
         output = self.fc(e_outputs.view(x.size(0), -1))
         return torch.sigmoid(output)
 
@@ -204,4 +208,5 @@ class Rollout(object):
             dic[name] = param.data
         for name, param in self.own_model.named_parameters():
             param.data = self.update_rate * param.data + (1 - self.update_rate) * dic[name]
+
 
